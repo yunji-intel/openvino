@@ -1,6 +1,7 @@
 // Copyright (C) 2019-2020 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
+#include "cldnn/cldnn_config.hpp"
 #include <fstream>
 
 #include <transformations/op_conversions/convert_batch_to_space.hpp>
@@ -286,6 +287,9 @@ void LayerTestsCommon::ConfigureNetwork() {
             out.second->setPrecision(outPrc);
         }
     }
+
+    core->SetConfig({{CLDNN_CONFIG_KEY(SOURCES_DUMPS_DIR), "/home/yunji/Profilers/Bin/"}}, targetDevice);
+    core->SetConfig({{CONFIG_KEY(PERF_COUNT), CONFIG_VALUE(YES)}}, targetDevice);
 }
 
 void LayerTestsCommon::LoadNetwork() {
@@ -311,6 +315,12 @@ void LayerTestsCommon::Infer() {
         inferRequest.SetBatch(batchSize);
     }
     inferRequest.Infer();
+
+    auto execGraphInfo = executableNetwork.GetExecGraphInfo();
+    // graph path
+    std::string exec_graph_path = "/home/yunji/Profilers/Bin/graph.xml";
+    execGraphInfo.serialize(exec_graph_path);
+    std::cout << "dumping exec graph to " << exec_graph_path << std::endl;
 }
 
 std::vector<std::vector<std::uint8_t>> LayerTestsCommon::CalculateRefs() {
