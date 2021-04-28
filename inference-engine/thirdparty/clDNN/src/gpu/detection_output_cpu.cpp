@@ -537,14 +537,14 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         const int num_loc_classes = args.share_location ? 1 : args.num_classes;
         // printf("number of classes: %d, num_loc_classes: %d\n", args.num_classes, num_loc_classes);
         // printf("number of priors(bboxes): %d, prior_info_size: %d,\n", num_of_priors, args.prior_info_size);
-        auto start00 = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
         // Extract locations per image.
         std::vector<std::vector<std::vector<bounding_box>>> locations(
             num_of_images);  // Per image : label -> bounding boxes.
         extract_locations_per_image<dtype>(instance, locations, num_of_priors, num_loc_classes);
-        auto stop00 = std::chrono::high_resolution_clock::now();
-        auto duration00 = std::chrono::duration_cast<std::chrono::microseconds>(stop00 - start00);
-        std::cout << "extract_locations_per_image: " << duration00.count() << " microseconds." << std::endl;
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        std::cout << "extract_locations_per_image: " << duration.count() << " microseconds." << std::endl;
 
         int32_t batches_in_prior_boxes = instance.prior_box_memory().get_layout().size.batch[0];
         std::vector<bounding_box> prior_bboxes(batches_in_prior_boxes *
