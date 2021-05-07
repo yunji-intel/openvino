@@ -17,7 +17,7 @@
 #include <xmmintrin.h>
 #include <vector>
 #include <utility>
-
+#include <chrono>
 #ifdef FIX_OPENMP_RELEASE_ISSUE
 #ifdef OPENMP_FOUND
 #include <omp.h>
@@ -182,13 +182,17 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                         const bool share_location,
                         std::map<int, std::vector<int>>& indices,
                         std::vector<std::pair<float, std::pair<int, int>>>& scoreIndexPairs) {
+        auto start3 = std::chrono::high_resolution_clock::now();
         std::sort(scoreIndexPairs.begin(),
                     scoreIndexPairs.end(),
                     SortScorePairDescend<std::pair<int, int>>);
-
+        auto stop3 = std::chrono::high_resolution_clock::now();
+        auto duration3 = std::chrono::duration_cast<std::chrono::microseconds>(stop3 - start3);
+        std::cout << "mxNetNMS - sort: " << duration3.count() << " microseconds." << std::endl;
         if (top_k != -1)
             if (scoreIndexPairs.size() > static_cast<size_t>(top_k))
                 scoreIndexPairs.resize(top_k);
+        auto start4 = std::chrono::high_resolution_clock::now();
         while (scoreIndexPairs.size() != 0) {
             const int cls = scoreIndexPairs.front().second.first;
             const int prior = scoreIndexPairs.front().second.second;
@@ -208,6 +212,9 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
             }
             scoreIndexPairs.erase(scoreIndexPairs.begin());
         }
+        auto stop4 = std::chrono::high_resolution_clock::now();
+        auto duration4 = std::chrono::duration_cast<std::chrono::microseconds>(stop4 - start4);
+        std::cout << "mxNetNMS - while: " << duration4.count() << " microseconds." << std::endl;
     }
 
     static void caffeNMS(const std::vector<bounding_box>& bboxes,
@@ -258,7 +265,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
             final_detections;  // Per image -> For each label: Pair (score, prior index)
         for (int image = 0; image < num_of_images; ++image) {
             const std::vector<std::vector<bounding_box>>& bboxes_per_image = all_bboxes[image];
-            std::vector<std::vector<std::pair<float, int>>>& conf_per_image = confidences[image];
+            // std::vector<std::vector<std::pair<float, int>>>& conf_per_image = confidences[image];
             std::vector<std::pair<float, std::pair<int, int>>>& score_image = scoreIndexPairs[image];
             std::map<int, std::vector<int>> indices;
             int num_det = 0;
@@ -271,23 +278,27 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 #pragma omp parallel for num_threads(num_threads_to_use) reduction(+ : num_det)
 #endif
 #endif
-            if (!args.decrease_label_id) {
-                for (int cls = 0; cls < static_cast<int>(args.num_classes); ++cls) {
-                    if (static_cast<int>(cls) == args.background_label_id) {
-                        conf_per_image[cls].clear();
-                        continue;  // Skip background class.
-                    }
-                    std::vector<std::pair<float, int>>& scores = conf_per_image[cls];
-                    const int label = args.share_location ? 0 : cls;
-                    caffeNMS(bboxes_per_image[label], scores, args.nms_threshold, args.top_k, indices[cls]);
-                    num_det += indices[cls].size();
-                }
-            } else {
+            // if (!args.decrease_label_id) {
+            //     for (int cls = 0; cls < static_cast<int>(args.num_classes); ++cls) {
+            //         if (static_cast<int>(cls) == args.background_label_id) {
+            //             conf_per_image[cls].clear();
+            //             continue;  // Skip background class.
+            //         }
+            //         std::vector<std::pair<float, int>>& scores = conf_per_image[cls];
+            //         const int label = args.share_location ? 0 : cls;
+            //         caffeNMS(bboxes_per_image[label], scores, args.nms_threshold, args.top_k, indices[cls]);
+            //         num_det += indices[cls].size();
+            //     }
+            // } else {
+                auto start3 = std::chrono::high_resolution_clock::now();
                 mxNetNms(bboxes_per_image, args.nms_threshold, args.top_k, args.share_location, indices, score_image);
                 for (auto it = indices.begin(); it != indices.end(); it++) {
                     num_det += it->second.size();
                 }
-            }
+                auto stop3 = std::chrono::high_resolution_clock::now();
+                auto duration3 = std::chrono::duration_cast<std::chrono::microseconds>(stop3 - start3);
+                std::cout << "mxNetNms: " << duration3.count() << " microseconds." << std::endl;
+            // }
 
             // if (args.keep_top_k > -1 && num_det > args.keep_top_k) {
             std::vector<std::pair<float, std::pair<int, int>>> score_index_pairs;
@@ -623,8 +634,12 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                 }
             }
         }
+        auto start1 = std::chrono::high_resolution_clock::now();
         // Extract confidences per image.
         extract_confidences_per_image<dtype>(instance, confidences, num_of_priors, scoreIndexPairs);
+        auto stop1 = std::chrono::high_resolution_clock::now();
+        auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(stop1 - start1);
+        std::cout << "\nextract_confidences_per_image: " << duration1.count() << " microseconds." << std::endl;
     }
 
     event_impl::ptr execute_impl(const std::vector<event_impl::ptr>& events, detection_output_inst& instance) override {
@@ -641,13 +656,29 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
             num_of_images);  // Per image : class -> confidences per bounding box.
         std::vector<std::vector<std::pair<float, std::pair<int, int>>>> scoreIndexPairs;
         if (instance.location_memory().get_layout().data_type == data_types::f32) {
+            auto start1 = std::chrono::high_resolution_clock::now();
             prepare_data<data_type_to_type<data_types::f32>::type>(instance, bboxes, confidences, scoreIndexPairs);
+            auto stop1 = std::chrono::high_resolution_clock::now();
+            auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(stop1 - start1);
+            std::cout << "prepare_data: " << duration1.count() << " microseconds." << std::endl;
 
+            auto start3 = std::chrono::high_resolution_clock::now();
             generate_detections<data_type_to_type<data_types::f32>::type>(instance, num_of_images, bboxes, confidences, scoreIndexPairs);
+            auto stop3 = std::chrono::high_resolution_clock::now();
+            auto duration3 = std::chrono::duration_cast<std::chrono::microseconds>(stop3 - start3);
+            std::cout << "generate_detections: " << duration3.count() << " microseconds." << std::endl;
         } else {
+            auto start1 = std::chrono::high_resolution_clock::now();
             prepare_data<data_type_to_type<data_types::f16>::type>(instance, bboxes, confidences, scoreIndexPairs);
+            auto stop1 = std::chrono::high_resolution_clock::now();
+            auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(stop1 - start1);
+            std::cout << "prepare_data: " << duration1.count() << " microseconds." << std::endl;
 
+            auto start3 = std::chrono::high_resolution_clock::now();
             generate_detections<data_type_to_type<data_types::f16>::type>(instance, num_of_images, bboxes, confidences, scoreIndexPairs);
+            auto stop3 = std::chrono::high_resolution_clock::now();
+            auto duration3 = std::chrono::duration_cast<std::chrono::microseconds>(stop3 - start3);
+            std::cout << "generate_detections: " << duration3.count() << " microseconds." << std::endl;
         }
 
         dynamic_cast<cldnn::user_event*>(ev.get())->set();  // set as complete
