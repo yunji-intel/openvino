@@ -24,6 +24,14 @@
 #endif
 #endif
 
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <mutex>
+
+#if defined(__unix__) && !defined(__ANDROID__)
+#include <malloc.h>
+#endif
+
 namespace cldnn {
 namespace gpu {
 
@@ -472,10 +480,14 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         const int input_padding_lower_y = input_padding.lower_size().spatial[1];
         const int stride = input_buffer_size_y * input_buffer_size_x;
 
+        // int n_threads = _context.get_configuration().n_threads;
+        const auto& arena = std::unique_ptr<tbb::task_arena>(new tbb::task_arena());
+        arena->initialize(4);
+
         for (int image = 0; image < num_of_images; ++image) {
             std::vector<std::vector<std::pair<float, int>>>& label_to_scores = confidences[image];
-            std::vector<std::pair<float, std::pair<int, int>>> score_index_per_prior;
             label_to_scores.resize(num_classes);
+            std::vector<std::pair<float, std::pair<int, int>>> score_index_per_prior;
             int idx = get_linear_feature_index(image,
                                                0,
                                                input_buffer_size_f,
@@ -486,64 +498,111 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
             if (stride == 1 && std::is_same<dtype, float>::value) {
                 float const* confidence_ptr_float = (float const*)(&(*confidence_data));
                 confidence_ptr_float += idx;
-                __m128 threshold = _mm_load_ps1(&confidence_threshold);
-                for (int prior = 0; prior < num_of_priors; ++prior) {
-                    int cls = 0;
-                    float max_score = 0;
-                    int max_cls = 0;
-                    for (; cls + 3 < num_classes; cls += 4) {
-                        __m128 scores = _mm_loadu_ps(confidence_ptr_float);
-                        confidence_ptr_float += 4;
-                        __m128i mask128 = _mm_castps_si128(_mm_cmpgt_ps(scores, threshold));
-                        if (_mm_testz_si128(mask128, mask128)) {
-                            continue;
-                        }
-                        int mask = _mm_movemask_ps(_mm_castsi128_ps(mask128));
-                        if (mask & 1) {
-                            label_to_scores[cls + 0].emplace_back(_mm_cvtss_f32(scores), prior);
-                            if (_mm_cvtss_f32(scores) > max_score && cls + 0 != 0) {
-                                max_score = _mm_cvtss_f32(scores); max_cls = cls + 0;
+                // __m128 threshold = _mm_load_ps1(&confidence_threshold);
+                std::mutex _mutex;
+                std::mutex m1;
+
+                arena->execute([this, &num_of_priors, &image, &confidence_threshold, &num_classes,
+                 &confidences, &confidence_ptr_float, &score_index_per_prior, &label_to_scores, &_mutex, &m1] {
+                    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_of_priors),
+                     [this, &image, &confidence_threshold, &num_classes, &confidences,
+                     &confidence_ptr_float, &score_index_per_prior, &label_to_scores, &_mutex, &m1]
+                     (const tbb::blocked_range<size_t>& r) {
+                         int prior = r.begin();
+                         float const* tmp = confidence_ptr_float;
+                         tmp += num_classes * prior;
+                        //  confidence_ptr_float += num_classes;
+
+                        __m128 threshold = _mm_load_ps1(&confidence_threshold);
+                        // for (auto prior = r.begin(); prior != r.end(); ++prior) {
+                            std::cout << prior << std::endl;
+                            int cls = 0;
+                            float max_score = 0;
+                            int max_cls = 0;
+                            for (; cls + 3 < num_classes; cls += 4) {
+                                __m128 scores = _mm_loadu_ps(tmp);
+                                tmp += 4;
+                                __m128i mask128 = _mm_castps_si128(_mm_cmpgt_ps(scores, threshold));
+                                if (_mm_testz_si128(mask128, mask128)) {
+                                    continue;
+                                }
+                                int mask = _mm_movemask_ps(_mm_castsi128_ps(mask128));
+                                if (mask & 1) {
+                                    // std::unique_lock<std::mutex> lock(m1);
+                                    m1.lock();
+                                    label_to_scores[cls + 0].emplace_back(_mm_cvtss_f32(scores), prior);
+                                    std::cout << _mm_cvtss_f32(scores) << ", " << prior << ", " << cls + 0 << std::endl;
+                                    m1.unlock();
+                                    if (_mm_cvtss_f32(scores) > max_score && cls + 0 != 0) {
+                                        max_score = _mm_cvtss_f32(scores); max_cls = cls + 0;
+                                    }
+                                }
+                                if (mask & 2) {
+                                    int score = _mm_extract_ps(scores, 1);
+                                    float s = reinterpret_cast<float&>(score);
+                                    // std::unique_lock<std::mutex> lock(m1);
+                                    m1.lock();
+                                    label_to_scores[cls + 1].emplace_back(s, prior);
+                                    std::cout << s << ", " << prior << ", " << cls + 1 << std::endl;
+                                    m1.unlock();
+                                    if (s > max_score) {
+                                        max_score = s; max_cls = cls + 1;
+                                    }
+                                }
+                                if (mask & 4) {
+                                    int score = _mm_extract_ps(scores, 2);
+                                    float s = reinterpret_cast<float&>(score);
+                                    // std::unique_lock<std::mutex> lock(m1);
+                                    m1.lock();
+                                    label_to_scores[cls + 2].emplace_back(s, prior);
+                                    std::cout << s << ", " << prior << ", " << cls + 2 << std::endl;
+                                    m1.unlock();
+                                    if (s > max_score) {
+                                        max_score = s; max_cls = cls + 2;
+                                    }
+                                }
+                                if (mask & 8) {
+                                    int score = _mm_extract_ps(scores, 3);
+                                    float s = reinterpret_cast<float&>(score);
+                                    // std::unique_lock<std::mutex> lock(m1);
+                                    m1.lock();
+                                    label_to_scores[cls + 3].emplace_back(s, prior);
+                                    std::cout << s << ", " << prior << ", " << cls + 3 << std::endl;
+                                    m1.unlock();
+                                    if (s > max_score) {
+                                        max_score = s; max_cls = cls + 3;
+                                    }
+                                }
                             }
-                        }
-                        if (mask & 2) {
-                            int score = _mm_extract_ps(scores, 1);
-                            float s = reinterpret_cast<float&>(score);
-                            label_to_scores[cls + 1].emplace_back(s, prior);
-                            if (s > max_score) {
-                                max_score = s; max_cls = cls + 1;
+                            for (; cls < num_classes; ++cls) {
+                                float score = *tmp;
+                                if (score > confidence_threshold) {
+                                    // std::unique_lock<std::mutex> lock(m1);
+                                    // std::lock(m1);
+                                    m1.lock();
+                                    label_to_scores[cls].emplace_back(score, prior);
+                                    std::cout << score << ", " << prior << ", " << cls << std::endl;
+                                    m1.unlock();
+                                    if (score > max_score) {
+                                        max_score = score;  max_cls = cls;
+                                    }
+                                }
+                                ++tmp;
                             }
-                        }
-                        if (mask & 4) {
-                            int score = _mm_extract_ps(scores, 2);
-                            float s = reinterpret_cast<float&>(score);
-                            label_to_scores[cls + 2].emplace_back(s, prior);
-                            if (s > max_score) {
-                                max_score = s; max_cls = cls + 2;
-                            }
-                        }
-                        if (mask & 8) {
-                            int score = _mm_extract_ps(scores, 3);
-                            float s = reinterpret_cast<float&>(score);
-                            label_to_scores[cls + 3].emplace_back(s, prior);
-                            if (s > max_score) {
-                                max_score = s; max_cls = cls + 3;
-                            }
-                        }
-                    }
-                    for (; cls < num_classes; ++cls) {
-                        float score = *confidence_ptr_float;
-                        if (score > confidence_threshold) {
-                            label_to_scores[cls].emplace_back(score, prior);
-                            if (score > max_score) {
-                                max_score = score;  max_cls = cls;
-                            }
-                        }
-                        ++confidence_ptr_float;
-                    }
-                    score_index_per_prior.emplace_back(std::make_pair(max_score, std::make_pair(max_cls, prior)));
-                }
+                            // std::unique_lock<std::mutex> lock(_mutex);
+                            // std::lock(_mutex);
+                            _mutex.lock();
+                            score_index_per_prior.emplace_back(std::make_pair(max_score, std::make_pair(max_cls, prior)));
+                            // confidence_ptr_float = tmp;
+                            _mutex.unlock();
+            // }
+                        // }
+                    });
+                });
                 scoreIndexPairs.push_back(score_index_per_prior);
             } else {
+                std::vector<std::vector<std::pair<float, int>>>& label_to_scores = confidences[image];
+                label_to_scores.resize(num_classes);
                 for (int prior = 0; prior < num_of_priors; ++prior) {
                     for (int cls = 0; cls < num_classes; ++cls) {
                         float score = static_cast<float>(confidence_data[idx]);
