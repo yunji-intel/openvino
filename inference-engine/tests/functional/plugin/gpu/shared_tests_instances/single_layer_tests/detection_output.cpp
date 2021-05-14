@@ -11,15 +11,17 @@ namespace {
 const int numClasses = 11;
 const int backgroundLabelId = 0;
 const std::vector<int> topK = {75};
+// const std::vector<std::vector<int>> keepTopK = { {50}};
 const std::vector<std::vector<int>> keepTopK = { {50}, {100} };
-const std::vector<std::string> codeType = {"caffe.PriorBoxParameter.CORNER", "caffe.PriorBoxParameter.CENTER_SIZE"};
+// const std::vector<std::string> codeType = {"caffe.PriorBoxParameter.CORNER", "caffe.PriorBoxParameter.CENTER_SIZE"};
+const std::vector<std::string> codeType = {"caffe.PriorBoxParameter.CENTER_SIZE"};
 const float nmsThreshold = 0.5f;
 const float confidenceThreshold = 0.3f;
 const std::vector<bool> clipAfterNms = {true, false};
-const std::vector<bool> clipBeforeNms = {true, false};
-const std::vector<bool> decreaseLabelId = {true, false};
+const std::vector<bool> clipBeforeNms = {true};
+const std::vector<bool> decreaseLabelId = {false};
 const float objectnessScore = 0.4f;
-const std::vector<size_t> numberBatch = {1, 2};
+const std::vector<size_t> numberBatch = {1};
 
 const auto commonAttributes = ::testing::Combine(
         ::testing::Values(numClasses),
@@ -37,15 +39,15 @@ const auto commonAttributes = ::testing::Combine(
 /* =============== 3 inputs cases =============== */
 
 const std::vector<ParamsWhichSizeDepends> specificParams3In = {
-    ParamsWhichSizeDepends{true, true, true, 1, 1, {1, 60}, {1, 165}, {1, 1, 60}, {}, {}},
+//     ParamsWhichSizeDepends{true, true, true, 1, 1, {1, 60}, {1, 165}, {1, 1, 60}, {}, {}},
     ParamsWhichSizeDepends{true, false, true, 1, 1, {1, 660}, {1, 165}, {1, 1, 60}, {}, {}},
-    ParamsWhichSizeDepends{false, true, true, 1, 1, {1, 60}, {1, 165}, {1, 2, 60}, {}, {}},
-    ParamsWhichSizeDepends{false, false, true, 1, 1, {1, 660}, {1, 165}, {1, 2, 60}, {}, {}},
+//     ParamsWhichSizeDepends{false, true, true, 1, 1, {1, 60}, {1, 165}, {1, 2, 60}, {}, {}},
+//     ParamsWhichSizeDepends{false, false, true, 1, 1, {1, 660}, {1, 165}, {1, 2, 60}, {}, {}},
 
-    ParamsWhichSizeDepends{true, true, false, 10, 10, {1, 60}, {1, 165}, {1, 1, 75}, {}, {}},
-    ParamsWhichSizeDepends{true, false, false, 10, 10, {1, 660}, {1, 165}, {1, 1, 75}, {}, {}},
-    ParamsWhichSizeDepends{false, true, false, 10, 10, {1, 60}, {1, 165}, {1, 2, 75}, {}, {}},
-    ParamsWhichSizeDepends{false, false, false, 10, 10, {1, 660}, {1, 165}, {1, 2, 75}, {}, {}}
+//     ParamsWhichSizeDepends{true, true, false, 10, 10, {1, 60}, {1, 165}, {1, 1, 75}, {}, {}},
+//     ParamsWhichSizeDepends{true, false, false, 10, 10, {1, 660}, {1, 165}, {1, 1, 75}, {}, {}},
+//     ParamsWhichSizeDepends{false, true, false, 10, 10, {1, 60}, {1, 165}, {1, 2, 75}, {}, {}},
+//     ParamsWhichSizeDepends{false, false, false, 10, 10, {1, 660}, {1, 165}, {1, 2, 75}, {}, {}}
 };
 
 const auto params3Inputs = ::testing::Combine(
@@ -80,6 +82,6 @@ const auto params5Inputs = ::testing::Combine(
         ::testing::Values(CommonTestUtils::DEVICE_GPU)
 );
 
-INSTANTIATE_TEST_CASE_P(smoke_DetectionOutput5In, DetectionOutputLayerTest, params5Inputs, DetectionOutputLayerTest::getTestCaseName);
+// INSTANTIATE_TEST_CASE_P(smoke_DetectionOutput5In, DetectionOutputLayerTest, params5Inputs, DetectionOutputLayerTest::getTestCaseName);
 
 }  // namespace

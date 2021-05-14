@@ -83,6 +83,15 @@ public:
 
     template<class T>
     static void Compare(const T *expected, const T *actual, std::size_t size, T threshold) {
+        std::cout << "\nexpected (ref)\n";
+        for (std::size_t i = 0; i < size; ++i) {
+            std::cout << expected[i] << " ";
+        }
+        std::cout << "\nactual (current res)\n";
+        for (std::size_t i = 0; i < size; ++i) {
+            std::cout << actual[i] << " ";
+        }
+        std::cout << std::endl;
         for (std::size_t i = 0; i < size; ++i) {
             const auto &ref = expected[i];
             const auto &res = actual[i];
@@ -90,6 +99,7 @@ public:
             if (absoluteDifference <= threshold) {
                 continue;
             }
+
 
             const auto max = std::max(CommonTestUtils::ie_abs(res), CommonTestUtils::ie_abs(ref));
             float diff = static_cast<float>(absoluteDifference) / static_cast<float>(max);

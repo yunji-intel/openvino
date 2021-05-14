@@ -124,6 +124,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                 break;
             }
             case prior_box_code_type::center_size: {
+                std::cout << prior_bbox_xmax << ", " << prior_bbox_xmin << std::endl;
                 const float prior_width = prior_bbox_xmax - prior_bbox_xmin;
                 assert(prior_width > 0);
                 const float prior_height = prior_bbox_ymax - prior_bbox_ymin;
@@ -249,7 +250,11 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
     template <typename T>
     static bool SortScorePairDescend(const std::pair<float, T>& pair1,
                                         const std::pair<float, T>& pair2) {
+        // if (pair1.first == pair2.first) {
+        //     return pair1.second > pair2.second;
+        // } else {
         return pair1.first > pair2.first;
+        // }
     }
 
     template <typename dtype>
@@ -593,9 +598,9 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                             // std::lock(_mutex);
                             _mutex.lock();
                             score_index_per_prior.emplace_back(std::make_pair(max_score, std::make_pair(max_cls, prior)));
+                            std::cout << "max: " << max_score << ", " << prior << ", " << max_cls << std::endl;
                             // confidence_ptr_float = tmp;
                             _mutex.unlock();
-            // }
                         // }
                     });
                 });
