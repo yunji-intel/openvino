@@ -230,6 +230,9 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         }
         // NMS
         for (const auto& s : scores) {
+            // if (s.first > 0.845 && s.first < 0.847) {
+            //     std::cout << s.first << " + " << s.second << std::endl;
+            // }
             const int idx = s.second;
             bool keep = true;
             for (int k = 0; k < static_cast<int>(indices.size()); ++k) {
@@ -249,27 +252,28 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
     template <typename T>
     static bool SortScorePairDescend(const std::pair<float, T>& pair1,
                                         const std::pair<float, T>& pair2) {
-        // if (pair1.first == pair2.first) {
-        //     return pair1.second > pair2.second;
-        // } else {
-        return pair1.first > pair2.first;
-        // }
+        if (pair1.first == pair2.first) {
+            return pair1.second < pair2.second;
+        } else {
+            return pair1.first > pair2.first;
+        }
     }
-
     template <typename T>
     static bool SortScorePairDescend2(const std::pair<float, std::pair<int, int>>& pair1,
                                         const std::pair<float, std::pair<int, int>>& pair2) {
         if (pair1.first == pair2.first) {
-            if (pair1.second.first == pair2.second.first) {
-                // std::cout << pair1.first << std::endl;
-                // std::cout << pair1.second.first << ", " << pair1.second.second << " | " << pair2.second.first << ", " << pair2.second.second << std::endl;
-            }
             return pair1.second.second < pair2.second.second;
         } else {
             // std::cout << "&" << pair1.second.first << ", " << pair1.second.second << " | " << pair2.second.first << ", " << pair2.second.second << std::endl;
             return pair1.first > pair2.first;
         }
     }
+    template <typename T>
+    static bool SortScorePairDescend3(const std::pair<float, T>& pair1,
+                                        const std::pair<float, T>& pair2) {
+        return pair1.first > pair2.first;
+    }
+
     template <typename dtype>
     void generate_detections(const detection_output_inst& instance,
                              const int num_of_images,
@@ -298,7 +302,6 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 #endif
 #endif
             if (!args.decrease_label_id) {
-                std::cout << "Caffe NMS\n";
                 for (int cls = 0; cls < static_cast<int>(args.num_classes); ++cls) {
                     if (static_cast<int>(cls) == args.background_label_id) {
                         conf_per_image[cls].clear();
@@ -310,7 +313,6 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                     num_det += static_cast<int>(indices[cls].size());
                 }
             } else {
-                std::cout << "mxNEt NMS\n";
                 mxNetNms(bboxes_per_image, args.nms_threshold, args.top_k, args.share_location, indices, score_image);
                 for (auto it = indices.begin(); it != indices.end(); it++) {
                     num_det += static_cast<int>(it->second.size());
@@ -335,7 +337,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 
             std::sort(score_index_pairs.begin(),
                         score_index_pairs.end(),
-                        SortScorePairDescend2<std::pair<int, int>>);
+                        SortScorePairDescend3<std::pair<int, int>>);
 
             score_index_pairs.resize(args.keep_top_k);
 
@@ -503,7 +505,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 
         // int n_threads = _context.get_configuration().n_threads;
         const auto& arena = std::unique_ptr<tbb::task_arena>(new tbb::task_arena());
-        arena->initialize(4);
+        arena->initialize(1);
 
         for (int image = 0; image < num_of_images; ++image) {
             std::vector<std::vector<std::pair<float, int>>>& label_to_scores = confidences[image];
@@ -532,10 +534,8 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                          int prior = r.begin();
                          float const* tmp = confidence_ptr_float;
                          tmp += num_classes * prior;
-                        //  confidence_ptr_float += num_classes;
 
                         __m128 threshold = _mm_load_ps1(&confidence_threshold);
-                        // for (auto prior = r.begin(); prior != r.end(); ++prior) {
                             // std::cout << prior << std::endl;
                             int cls = 0;
                             float max_score = 0;
@@ -598,8 +598,6 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                             for (; cls < num_classes; ++cls) {
                                 float score = *tmp;
                                 if (score > confidence_threshold) {
-                                    // std::unique_lock<std::mutex> lock(m1);
-                                    // std::lock(m1);
                                     m1.lock();
                                     label_to_scores[cls].emplace_back(score, prior);
                                     // std::cout << score << ", " << prior << ", " << cls << std::endl;
@@ -610,14 +608,10 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                 }
                                 ++tmp;
                             }
-                            // std::unique_lock<std::mutex> lock(_mutex);
-                            // std::lock(_mutex);
                             _mutex.lock();
                             score_index_per_prior.emplace_back(std::make_pair(max_score, std::make_pair(max_cls, prior)));
                             // std::cout << "max: " << max_score << ", " << prior << ", " << max_cls << std::endl;
-                            // confidence_ptr_float = tmp;
                             _mutex.unlock();
-                        // }
                     });
                 });
                 scoreIndexPairs.push_back(score_index_per_prior);
