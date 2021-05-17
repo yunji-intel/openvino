@@ -124,11 +124,11 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                 break;
             }
             case prior_box_code_type::center_size: {
-                std::cout << prior_bbox_xmax << ", " << prior_bbox_xmin << std::endl;
+                // printf("%f %f %f %f\n", prior_bbox_xmin, prior_bbox_ymin, prior_bbox_xmax, prior_bbox_ymax);
                 const float prior_width = prior_bbox_xmax - prior_bbox_xmin;
-                assert(prior_width > 0);
+                // assert(prior_width > 0);
                 const float prior_height = prior_bbox_ymax - prior_bbox_ymin;
-                assert(prior_height > 0);
+                // assert(prior_height > 0);
                 const float prior_center_x = (prior_bbox_xmin + prior_bbox_xmax) / 2.f;
                 const float prior_center_y = (prior_bbox_ymin + prior_bbox_ymax) / 2.f;
                 float decode_bbox_center_x, decode_bbox_center_y;
@@ -193,7 +193,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                         std::vector<std::pair<float, std::pair<int, int>>>& scoreIndexPairs) {
         std::sort(scoreIndexPairs.begin(),
                     scoreIndexPairs.end(),
-                    SortScorePairDescend<std::pair<int, int>>);
+                    SortScorePairDescend2<std::pair<int, int>>);
 
         if (top_k != -1)
             if (scoreIndexPairs.size() > static_cast<size_t>(top_k))
@@ -225,7 +225,6 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                           const int top_k,
                           std::vector<int>& indices) {
         std::stable_sort(scores.begin(), scores.end(), SortScorePairDescend<int>);
-
         if (top_k > -1 && static_cast<size_t>(top_k) < static_cast<size_t>(scores.size())) {
             scores.resize(top_k);
         }
@@ -257,6 +256,20 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         // }
     }
 
+    template <typename T>
+    static bool SortScorePairDescend2(const std::pair<float, std::pair<int, int>>& pair1,
+                                        const std::pair<float, std::pair<int, int>>& pair2) {
+        if (pair1.first == pair2.first) {
+            if (pair1.second.first == pair2.second.first) {
+                // std::cout << pair1.first << std::endl;
+                // std::cout << pair1.second.first << ", " << pair1.second.second << " | " << pair2.second.first << ", " << pair2.second.second << std::endl;
+            }
+            return pair1.second.second < pair2.second.second;
+        } else {
+            // std::cout << "&" << pair1.second.first << ", " << pair1.second.second << " | " << pair2.second.first << ", " << pair2.second.second << std::endl;
+            return pair1.first > pair2.first;
+        }
+    }
     template <typename dtype>
     void generate_detections(const detection_output_inst& instance,
                              const int num_of_images,
@@ -285,6 +298,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 #endif
 #endif
             if (!args.decrease_label_id) {
+                std::cout << "Caffe NMS\n";
                 for (int cls = 0; cls < static_cast<int>(args.num_classes); ++cls) {
                     if (static_cast<int>(cls) == args.background_label_id) {
                         conf_per_image[cls].clear();
@@ -296,6 +310,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                     num_det += static_cast<int>(indices[cls].size());
                 }
             } else {
+                std::cout << "mxNEt NMS\n";
                 mxNetNms(bboxes_per_image, args.nms_threshold, args.top_k, args.share_location, indices, score_image);
                 for (auto it = indices.begin(); it != indices.end(); it++) {
                     num_det += static_cast<int>(it->second.size());
@@ -320,7 +335,8 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 
             std::sort(score_index_pairs.begin(),
                         score_index_pairs.end(),
-                        SortScorePairDescend<std::pair<int, int>>);
+                        SortScorePairDescend2<std::pair<int, int>>);
+
             score_index_pairs.resize(args.keep_top_k);
 
             std::vector<std::vector<std::pair<float, int>>> new_indices(args.num_classes);
@@ -520,7 +536,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
 
                         __m128 threshold = _mm_load_ps1(&confidence_threshold);
                         // for (auto prior = r.begin(); prior != r.end(); ++prior) {
-                            std::cout << prior << std::endl;
+                            // std::cout << prior << std::endl;
                             int cls = 0;
                             float max_score = 0;
                             int max_cls = 0;
@@ -536,7 +552,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                     // std::unique_lock<std::mutex> lock(m1);
                                     m1.lock();
                                     label_to_scores[cls + 0].emplace_back(_mm_cvtss_f32(scores), prior);
-                                    std::cout << _mm_cvtss_f32(scores) << ", " << prior << ", " << cls + 0 << std::endl;
+                                    // std::cout << _mm_cvtss_f32(scores) << ", " << prior << ", " << cls + 0 << std::endl;
                                     m1.unlock();
                                     if (_mm_cvtss_f32(scores) > max_score && cls + 0 != 0) {
                                         max_score = _mm_cvtss_f32(scores); max_cls = cls + 0;
@@ -548,7 +564,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                     // std::unique_lock<std::mutex> lock(m1);
                                     m1.lock();
                                     label_to_scores[cls + 1].emplace_back(s, prior);
-                                    std::cout << s << ", " << prior << ", " << cls + 1 << std::endl;
+                                    // std::cout << s << ", " << prior << ", " << cls + 1 << std::endl;
                                     m1.unlock();
                                     if (s > max_score) {
                                         max_score = s; max_cls = cls + 1;
@@ -560,7 +576,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                     // std::unique_lock<std::mutex> lock(m1);
                                     m1.lock();
                                     label_to_scores[cls + 2].emplace_back(s, prior);
-                                    std::cout << s << ", " << prior << ", " << cls + 2 << std::endl;
+                                    // std::cout << s << ", " << prior << ", " << cls + 2 << std::endl;
                                     m1.unlock();
                                     if (s > max_score) {
                                         max_score = s; max_cls = cls + 2;
@@ -572,7 +588,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                     // std::unique_lock<std::mutex> lock(m1);
                                     m1.lock();
                                     label_to_scores[cls + 3].emplace_back(s, prior);
-                                    std::cout << s << ", " << prior << ", " << cls + 3 << std::endl;
+                                    // std::cout << s << ", " << prior << ", " << cls + 3 << std::endl;
                                     m1.unlock();
                                     if (s > max_score) {
                                         max_score = s; max_cls = cls + 3;
@@ -586,7 +602,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                                     // std::lock(m1);
                                     m1.lock();
                                     label_to_scores[cls].emplace_back(score, prior);
-                                    std::cout << score << ", " << prior << ", " << cls << std::endl;
+                                    // std::cout << score << ", " << prior << ", " << cls << std::endl;
                                     m1.unlock();
                                     if (score > max_score) {
                                         max_score = score;  max_cls = cls;
@@ -598,7 +614,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                             // std::lock(_mutex);
                             _mutex.lock();
                             score_index_per_prior.emplace_back(std::make_pair(max_score, std::make_pair(max_cls, prior)));
-                            std::cout << "max: " << max_score << ", " << prior << ", " << max_cls << std::endl;
+                            // std::cout << "max: " << max_score << ", " << prior << ", " << max_cls << std::endl;
                             // confidence_ptr_float = tmp;
                             _mutex.unlock();
                         // }
