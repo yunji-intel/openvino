@@ -287,40 +287,58 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
                 }
             }
 
-            // if (args.keep_top_k > -1 && num_det > args.keep_top_k) {
-            std::vector<std::pair<float, std::pair<int, int>>> score_index_pairs;
-            for (auto it = indices.begin(); it != indices.end(); ++it) {
-                int label = it->first;
-                const std::vector<int>& labelIndices = it->second;
-                std::vector<std::pair<float, int>>& scores = confidences[image][label];
-                for (int j = 0; j < static_cast<int>(labelIndices.size()); ++j) {
-                    int idx = labelIndices[j];
-                    for (const auto& s : scores) {
-                        if (s.second == idx) {
-                            score_index_pairs.push_back(std::make_pair(s.first, std::make_pair(label, idx)));
+            if (args.keep_top_k > -1 && num_det > args.keep_top_k) {
+                std::vector<std::pair<float, std::pair<int, int>>> score_index_pairs;
+                for (auto it = indices.begin(); it != indices.end(); ++it) {
+                    int label = it->first;
+                    const std::vector<int>& labelIndices = it->second;
+                    std::vector<std::pair<float, int>>& scores = confidences[image][label];
+                    for (int j = 0; j < static_cast<int>(labelIndices.size()); ++j) {
+                        int idx = labelIndices[j];
+                        for (const auto& s : scores) {
+                            if (s.second == idx) {
+                                score_index_pairs.push_back(std::make_pair(s.first, std::make_pair(label, idx)));
+                            }
                         }
                     }
                 }
-            }
 
-            std::sort(score_index_pairs.begin(),
-                        score_index_pairs.end(),
-                        SortScorePairDescend<std::pair<int, int>>);
-            score_index_pairs.resize(args.keep_top_k);
+                std::sort(score_index_pairs.begin(),
+                            score_index_pairs.end(),
+                            SortScorePairDescend<std::pair<int, int>>);
+                score_index_pairs.resize(args.keep_top_k);
 
-            std::vector<std::vector<std::pair<float, int>>> new_indices(args.num_classes);
-            for (int j = 0; j < static_cast<int>(score_index_pairs.size()); ++j) {
-                int label = score_index_pairs[j].second.first;
-                int idx = score_index_pairs[j].second.second;
-                new_indices[label].emplace_back(score_index_pairs[j].first, idx);
+                std::vector<std::vector<std::pair<float, int>>> new_indices(args.num_classes);
+                for (int j = 0; j < static_cast<int>(score_index_pairs.size()); ++j) {
+                    int label = score_index_pairs[j].second.first;
+                    int idx = score_index_pairs[j].second.second;
+                    new_indices[label].emplace_back(score_index_pairs[j].first, idx);
+                }
+                final_detections.emplace_back(new_indices);
+            } else {
+                std::vector<std::vector<std::pair<float, int>>> new_indices(args.num_classes);
+                for (auto it = indices.begin(); it != indices.end(); ++it) {
+                    int label = it->first;
+                    const std::vector<int>& labelIndices = it->second;
+                    std::vector<std::pair<float, int>>& scores = confidences[image][label];
+                    for (int j = 0; j < static_cast<int>(labelIndices.size()); ++j) {
+                        int idx = labelIndices[j];
+                        for (const auto& s : scores) {
+                            if (s.second == idx) {
+                                new_indices[label].emplace_back(s.first, idx);
+                            }
+                        }
+                    }
+                }
+                final_detections.emplace_back(new_indices);
             }
-            final_detections.emplace_back(new_indices);
         }
+
         int count = 0;
         for (int image = 0; image < num_of_images; ++image) {
             const std::vector<std::vector<bounding_box>>& bboxes_per_image = all_bboxes[image];
             auto& final_detections_per_image = final_detections[image];
-            for (int label = 1; label < static_cast<int>(final_detections_per_image.size()); ++label) {
+            for (int label = 0; label < static_cast<int>(final_detections_per_image.size()); ++label) {
                 int loc_label = args.share_location ? 0 : label;
                 const std::vector<bounding_box>& bboxes = bboxes_per_image[loc_label];
                 const std::vector<std::pair<float, int>>& label_detections = final_detections_per_image[label];
@@ -352,8 +370,15 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         }
         // In case number of detections is smaller than keep_top_k fill the rest of the buffer with invalid image id
         // (-1).
-        if (count < num_of_images * args.keep_top_k) {
+        while (count < num_of_images * args.keep_top_k) {
             out_ptr[count * DETECTION_OUTPUT_ROW_SIZE] = (dtype)-1.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 1] = (dtype)0.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 2] = (dtype)0.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 3] = (dtype)0.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 4] = (dtype)0.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 5] = (dtype)0.f;
+            out_ptr[count * DETECTION_OUTPUT_ROW_SIZE + 6] = (dtype)0.f;
+            ++count;
         }
     }
 
@@ -387,24 +412,53 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
         auto location_data = lock.begin();
         assert(num_of_priors * num_loc_classes * PRIOR_BOX_SIZE == input_location.get_layout().size.feature[0]);
 
-        locations.resize(num_of_images);
+        const auto& input_buffer_size = input_location.get_layout().get_buffer_size();
+        const int input_buffer_size_x = input_buffer_size.spatial[0];
+        const int input_buffer_size_y = input_buffer_size.spatial[1];
+        const int input_buffer_size_f = input_buffer_size.feature[0];
+        const auto& input_padding = input_location.get_layout().data_padding;
+        const int input_padding_lower_x = input_padding.lower_size().spatial[0];
+        const int input_padding_lower_y = input_padding.lower_size().spatial[1];
+
         for (int image = 0; image < num_of_images; ++image) {
             std::vector<std::vector<bounding_box>>& label_to_bbox = locations[image];
             label_to_bbox.resize(num_loc_classes);
-            for (int prior = 0; prior < num_of_priors; ++prior) {
-                int idx = prior * num_loc_classes * PRIOR_BOX_SIZE;
-                for (int cls = 0; cls < num_loc_classes; ++cls) {
-                    int label = share_location ? 0 : cls;
-                    auto& bboxes = label_to_bbox[label];
-                    bboxes.resize(num_of_priors);
-
-                    bboxes[prior].xmin = location_data[idx + cls * PRIOR_BOX_SIZE];
-                    bboxes[prior].ymin = location_data[idx + cls * PRIOR_BOX_SIZE + 1];
-                    bboxes[prior].xmax = location_data[idx + cls * PRIOR_BOX_SIZE + 2];
-                    bboxes[prior].ymax = location_data[idx + cls * PRIOR_BOX_SIZE + 3];
+            for (int cls = 0; cls < num_loc_classes; ++cls) {
+                int label = share_location ? 0 : cls;
+                auto& bboxes = label_to_bbox[label];
+                bboxes.resize(num_of_priors);
+                for (int prior = 0; prior < num_of_priors; ++prior) {
+                    int idx = prior * num_loc_classes * PRIOR_BOX_SIZE;
+                    bboxes[prior].xmin = static_cast<float>((location_data[get_linear_feature_index(image,
+                                                                                        idx + cls * PRIOR_BOX_SIZE,
+                                                                                        input_buffer_size_f,
+                                                                                        input_buffer_size_y,
+                                                                                        input_buffer_size_x,
+                                                                                        input_padding_lower_y,
+                                                                                        input_padding_lower_x)]));
+                    bboxes[prior].ymin = static_cast<float>((location_data[get_linear_feature_index(image,
+                                                                                        idx + cls * PRIOR_BOX_SIZE + 1,
+                                                                                        input_buffer_size_f,
+                                                                                        input_buffer_size_y,
+                                                                                        input_buffer_size_x,
+                                                                                        input_padding_lower_y,
+                                                                                        input_padding_lower_x)]));
+                    bboxes[prior].xmax = static_cast<float>((location_data[get_linear_feature_index(image,
+                                                                                        idx + cls * PRIOR_BOX_SIZE + 2,
+                                                                                        input_buffer_size_f,
+                                                                                        input_buffer_size_y,
+                                                                                        input_buffer_size_x,
+                                                                                        input_padding_lower_y,
+                                                                                        input_padding_lower_x)]));
+                    bboxes[prior].ymax = static_cast<float>((location_data[get_linear_feature_index(image,
+                                                                                        idx + cls * PRIOR_BOX_SIZE + 3,
+                                                                                        input_buffer_size_f,
+                                                                                        input_buffer_size_y,
+                                                                                        input_buffer_size_x,
+                                                                                        input_padding_lower_y,
+                                                                                        input_padding_lower_x)]));
                 }
             }
-            location_data += num_of_priors * num_loc_classes * PRIOR_BOX_SIZE;
         }
     }
 
