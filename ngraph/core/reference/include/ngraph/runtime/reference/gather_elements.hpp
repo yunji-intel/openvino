@@ -22,6 +22,7 @@ namespace ngraph
                                  const Shape& out_shape,
                                  int64_t axis)
             {
+                std::cout << "\naxis: " << axis << std::endl;
                 if (axis < 0)
                 {
                     axis += data_shape.size();
@@ -32,6 +33,46 @@ namespace ngraph
                         "axis for GatherElements exceeds allowed range [0, data_rank)"};
                 }
 
+                size_t total = data_shape[0];
+                // { 2, 2, 1, 1 } // data
+                std::cout << "data shape: { " << data_shape[0];
+                for (size_t i = 1; i < data_shape.size(); i++) {
+                    std::cout << ", " << data_shape[i];
+                    total = total * data_shape[i];
+                }
+                std::cout << " }\n";
+                size_t idx_total = indices_shape[0];
+                std::cout << "indices shape: { " << indices_shape[0];
+                for (size_t i = 1; i < indices_shape.size(); i++) {
+                    idx_total = idx_total * indices_shape[i];
+                    std::cout << ", " << indices_shape[i];
+                }
+                std::cout << " }\n\n";
+
+                std::cout << "------data------------------" << std::endl;
+                int r = data_shape.size() - 1;
+                size_t pivot = data_shape[r] -1;
+                size_t p_size = data_shape[r];
+                for (size_t i = 0; i < total; i++){
+                    float tmp = data[i];
+                    //        FLOAT16(1),
+                    std::cout << "FLOAT16("<< tmp << "), ";
+                    if (i == pivot) {
+                        std::cout << std::endl;
+                        pivot = pivot + p_size;
+                    }
+                }
+                size_t idx_p_size = indices_shape[indices_shape.size() - 1];
+                size_t idx_pivot = idx_p_size - 1;
+                std::cout << "\nindices------------------" << std::endl;
+                for (size_t i = 0; i < idx_total; i++){
+                    int tmp2 = indices[i];
+                    std::cout << "FLOAT16("<< tmp2 << "), ";
+                    if (i == idx_pivot) {
+                        std::cout << std::endl;
+                        idx_pivot = idx_pivot + idx_p_size;
+                    }
+                }
                 // in 1D case results can be achieved without additional calculations
                 if (data_shape.size() == 1)
                 {
@@ -42,7 +83,7 @@ namespace ngraph
                             throw std::domain_error{
                                 "indices values of GatherElement exceed data size"};
                         }
-                        out[i] = data[indices[i]];
+                        out[i] = data[indices[i]]; // yunji
                     }
                     return;
                 }
@@ -52,12 +93,13 @@ namespace ngraph
                 size_t num_rows = indices_shape[0];
                 size_t num_columns = indices_shape[1];
                 size_t data_num_columns = data_shape[1];
+
                 if (data_shape.size() == 2)
                 {
                     size_t idx;
                     if (axis == 0)
                     {
-                        for (size_t i = 0; i < num_rows; i++)
+                        for (size_t i = 0; i < num_rows; i++) {
                             for (size_t j = 0; j < num_columns; j++)
                             {
                                 idx = indices[num_columns * i + j];
@@ -68,11 +110,12 @@ namespace ngraph
                                 }
                                 out[num_columns * i + j] = data[data_num_columns * idx + j];
                             }
+                        }
                         return;
                     }
                     else // axis == 1
                     {
-                        for (size_t i = 0; i < num_rows; i++)
+                        for (size_t i = 0; i < num_rows; i++) {
                             for (size_t j = 0; j < num_columns; j++)
                             {
                                 idx = indices[num_columns * i + j];
@@ -84,6 +127,7 @@ namespace ngraph
 
                                 out[num_columns * i + j] = data[data_num_columns * i + idx];
                             }
+                        }
                         return;
                     }
                 }
@@ -120,7 +164,7 @@ namespace ngraph
 
                 for (size_t outer_sum = 0, i = 0; outer_sum < max_outer_sum;
                      outer_sum += outer_sum_inc)
-                    for (size_t k = 0; k < indices_shape[axis]; k++)
+                    for (size_t k = 0; k < indices_shape[axis]; k++) {
                         for (size_t inner_sum = 0; inner_sum < max_inner_sum; inner_sum++)
                         {
                             if (indices[i] < 0 ||
@@ -132,6 +176,19 @@ namespace ngraph
                             out[i] = data[outer_sum + max_inner_sum * indices[i] + inner_sum];
                             i++;
                         }
+                    }
+                idx_pivot = idx_p_size - 1;
+                std::cout << "\noutput------------------" << std::endl;
+                for (size_t i = 0; i < idx_total; i++){
+                    float tmp3 = out[i];
+                    // std::cout << tmp3 << " ";
+                    std::cout << "FLOAT16("<< tmp3 << "), ";
+                    if (i == idx_pivot) {
+                        std::cout << std::endl;
+                        idx_pivot = idx_pivot + idx_p_size;
+                    }
+                }
+                std::cout << std::endl;
             }
         } // namespace reference
     }     // namespace runtime
