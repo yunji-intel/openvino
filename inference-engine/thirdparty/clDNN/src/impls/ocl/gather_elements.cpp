@@ -29,7 +29,7 @@ kernel_selector::gather_elements_axis convert_axis(gather_elements::gather_eleme
         case gather_elements::along_b:
             return kernel_selector::gather_elements_axis::BATCH;
         default:
-            return kernel_selector::gather_elements_axis::X;
+            return kernel_selector::gather_elements_axis::BATCH;
     }
 }
 

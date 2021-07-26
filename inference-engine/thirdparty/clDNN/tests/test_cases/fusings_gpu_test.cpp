@@ -8452,7 +8452,6 @@ struct gather_elements_test_params {
 #define CASE_GATHER_ELEMENTS_FP16_6D_2 data_types::f16, format::bfwzyx, {2, 1, 2, 3, 2, 1}, format::bfwzyx, {2, 1, 2, 3, 2, 3}, format::bfwzyx, {2, 1, 2, 3, 2, 3}, cldnn::gather_elements::gather_elements_axis::along_w, data_types::f16, format::bfwzyx
 #define CASE_GATHER_ELEMENTS_FP16_6D_3 data_types::f16, format::bfwzyx, {2, 2, 3, 4, 4, 2}, format::bfwzyx, {2, 2, 6, 4, 4, 2}, format::bfwzyx, {2, 2, 6, 4, 4, 2}, cldnn::gather_elements::gather_elements_axis::along_x, data_types::f16, format::bfwzyx
 
-
 #define CASE_GATHER_ELEMENTS_FP32_4D_1 data_types::f32, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, cldnn::gather_elements::gather_elements_axis::along_y, data_types::f32, format::bfyx
 #define CASE_GATHER_ELEMENTS_FP32_4D_2 data_types::f32, format::bfyx, {3, 2, 8, 3}, format::bfyx, {2, 2, 8, 3}, format::bfyx, {2, 2, 8, 3}, cldnn::gather_elements::gather_elements_axis::along_b, data_types::f32, format::bfyx
 #define CASE_GATHER_ELEMENTS_FP32_4D_3 data_types::f32, format::bfyx, {1, 3, 2, 9}, format::bfyx, {1, 3, 5, 9}, format::bfyx, {1, 3, 5, 9}, cldnn::gather_elements::gather_elements_axis::along_x, data_types::f32, format::bfyx
@@ -8463,6 +8462,14 @@ struct gather_elements_test_params {
 #define CASE_GATHER_ELEMENTS_FP32_6D_1 data_types::f32, format::bfwzyx, {5, 4, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, cldnn::gather_elements::gather_elements_axis::along_f, data_types::f32, format::bfwzyx
 #define CASE_GATHER_ELEMENTS_FP32_6D_2 data_types::f32, format::bfwzyx, {2, 1, 2, 3, 2, 1}, format::bfwzyx, {2, 1, 2, 3, 2, 3}, format::bfwzyx, {2, 1, 2, 3, 2, 3}, cldnn::gather_elements::gather_elements_axis::along_w, data_types::f32, format::bfwzyx
 #define CASE_GATHER_ELEMENTS_FP32_6D_3 data_types::f32, format::bfwzyx, {2, 2, 3, 4, 4, 2}, format::bfwzyx, {2, 2, 6, 4, 4, 2}, format::bfwzyx, {2, 2, 6, 4, 4, 2}, cldnn::gather_elements::gather_elements_axis::along_x, data_types::f32, format::bfwzyx
+
+#define CASE_GATHER_ELEMENTS_I8_4D_1 data_types::i8, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, cldnn::gather_elements::gather_elements_axis::along_y, data_types::i8, format::bfyx
+#define CASE_GATHER_ELEMENTS_I8_5D_1 data_types::i8, format::bfzyx, {3, 2, 5, 2, 3}, format::bfzyx, {3, 2, 2, 2, 3}, format::bfzyx, {3, 2, 2, 2, 3}, cldnn::gather_elements::gather_elements_axis::along_x, data_types::i8, format::bfzyx
+#define CASE_GATHER_ELEMENTS_I8_6D_1 data_types::i8, format::bfwzyx, {5, 4, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, cldnn::gather_elements::gather_elements_axis::along_f, data_types::i8, format::bfwzyx
+
+#define CASE_GATHER_ELEMENTS_U8_4D_1 data_types::u8, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, format::bfyx, {3, 7, 9, 8}, cldnn::gather_elements::gather_elements_axis::along_y, data_types::u8, format::bfyx
+#define CASE_GATHER_ELEMENTS_U8_5D_1 data_types::u8, format::bfzyx, {3, 2, 5, 2, 3}, format::bfzyx, {3, 2, 2, 2, 3}, format::bfzyx, {3, 2, 2, 2, 3}, cldnn::gather_elements::gather_elements_axis::along_x, data_types::u8, format::bfzyx
+#define CASE_GATHER_ELEMENTS_U8_6D_1 data_types::u8, format::bfwzyx, {5, 4, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, format::bfwzyx, {5, 2, 6, 7, 8, 2}, cldnn::gather_elements::gather_elements_axis::along_f, data_types::u8, format::bfwzyx
 
 class GatherElementsPrimitiveFusingTest : public ::BaseFusingTest<gather_elements_test_params> {
 public:
@@ -8551,6 +8558,14 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, gather_elements_quantize,
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_1, 2, 3 },
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_2, 2, 3 },
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_3, 2, 3 },
+
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_4D_1, 2, 3 },
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_5D_1, 2, 3 },
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_6D_1, 2, 3 },
+
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_4D_1, 2, 3 },
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_5D_1, 2, 3 },
+        gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_6D_1, 2, 3 },
 }));
 
 
@@ -8638,4 +8653,12 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, gather_elements_activation_scale_eltwise,
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_1, 2, 5 },
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_2, 2, 5 },
         gather_elements_test_params{ CASE_GATHER_ELEMENTS_FP32_6D_3, 2, 5 },
+
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_4D_1, 2, 5 },
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_5D_1, 2, 5 },
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_I8_6D_1, 2, 5 },
+
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_4D_1, 2, 5 },
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_5D_1, 2, 5 },
+        // gather_elements_test_params{ CASE_GATHER_ELEMENTS_U8_6D_1, 2, 5 },
 }));

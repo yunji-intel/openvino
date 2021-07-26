@@ -14,17 +14,17 @@ static size_t GetGatherElementsChannelIndex(const gather_elements_params& params
     size_t inputSize = params.inputs[0].GetDims().size();
 
     switch (params.axis) {
-        case GatherElementsAxis::X:
+        case GatherAxis::X:
             return inputSize - 1;
-        case GatherElementsAxis::Y:
+        case GatherAxis::Y:
             return inputSize - 2;
-        case GatherElementsAxis::Z:
+        case GatherAxis::Z:
             return inputSize - 3;
-        case GatherElementsAxis::W:
+        case GatherAxis::W:
             return 2;
-        case GatherElementsAxis::FEATURE:
+        case GatherAxis::FEATURE:
             return 1;
-        case GatherElementsAxis::BATCH:
+        case GatherAxis::BATCH:
             return 0;
         default:
             break;
@@ -152,4 +152,7 @@ KernelsData GatherElementsKernelRef::GetKernelsData(const Params& params, const 
     return { kd };
 }
 
+KernelsPriority GatherElementsKernelRef::GetKernelsPriority(const Params& /*params*/, const optional_params& /*options*/) const {
+    return DONT_USE_IF_HAVE_SOMETHING_ELSE;
+}
 }  // namespace kernel_selector

@@ -1,6 +1,6 @@
 // Copyright (C) 2021 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-// //
+//
 
 #include <vector>
 #include <ngraph/opsets/opset6.hpp>
@@ -17,6 +17,8 @@ const std::vector<InferenceEngine::Precision> inputPrecisions = {
         InferenceEngine::Precision::FP32,
         InferenceEngine::Precision::FP16,
         InferenceEngine::Precision::I32,
+        InferenceEngine::Precision::I8,
+        InferenceEngine::Precision::U8,
 };
 
 const std::vector<InferenceEngine::Precision> idxPrecisions = {
